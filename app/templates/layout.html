@@ -25,6 +25,86 @@
         {{ bootstrap.load_js() }}
 
         <script>
+            $(document).ready(function() {       
+
+            // ID Constants
+            let STARTING_BALANCE = 'startingBalance';
+            let BASE_RISK = 'baseRisk';
+            let RISK_TO_REWARD_RATIO = 'riskToRewardRatio';
+            let WIN_RATE = 'winRate';
+            let NUM_TRADES = 'numTrades';
+            let NUM_SIMULATIONS = 'numSimulations';
+            let CHART = 'chart';
+
+            // Tracking Values
+            let startingBalance = 100000;
+            let baseRisk = 1000;
+            let riskToRewardRatio = 2;
+            let winRate = 50;
+            let numTrades = 25;
+            let numSimulations = 1;
+
+            // Ajax URLs
+            let UPDATE_CHART_URL = '/update_chart';
+
+            $(`#${STARTING_BALANCE}`).change(function(event) {
+                startingBalance = event.target.value;
+                updateChart(UPDATE_CHART_URL);
+            });
+            $(`#${BASE_RISK}`).change(function(event) {
+                baseRisk = event.target.value;
+                updateChart(UPDATE_CHART_URL);
+            });
+            $(`#${RISK_TO_REWARD_RATIO}`).change(function(event) {
+                riskToRewardRatio = event.target.value;
+                updateChart(UPDATE_CHART_URL);
+            });
+            $(`#${WIN_RATE}`).change(function(event) {
+                winRate = event.target.value;
+                updateChart(UPDATE_CHART_URL);
+            });
+            $(`#${NUM_TRADES}`).change(function(event) {
+                numTrades = event.target.value;
+                updateChart(UPDATE_CHART_URL);
+            });
+            $(`#${NUM_SIMULATIONS}`).change(function(event) {
+                numSimulations = event.target.value;
+                updateChart(UPDATE_CHART_URL);
+            });
+
+            function prepareData() {
+                let data = {
+                    startingBalance: startingBalance,
+                    baseRisk: baseRisk,
+                    riskToRewardRatio: riskToRewardRatio,
+                    winRate: winRate,
+                    numTrades: numTrades,
+                    numSimulations: numSimulations
+                };
+                return data
+            }
+
+            function updateChart(url) {
+
+                data = prepareData();
+
+                // Build the ajax request
+                $.ajax({
+                    type: 'POST',
+                    url: url,
+                    data: data,
+                    success: function(response) {
+                        console.log(response['message']);
+                        $(`#${CHART}`).attr('src', `data:image/png;base64, ${response['plot']}`)
+                    },
+                    error: function(error) {
+                        console.log('Error updating Chart.');
+                        console.log(error);
+                    }
+                });
+            }
+
+        });
         </script>
 
     {% endblock %}
@@ -37,59 +117,64 @@
             <div class="container-fluid text-center">
                 <div class="row text-center">
                     <div class="col-7">
-                        <div class="row text-center">
-                            <img src="https://www.thechartist.com.au/wp-content/uploads/2019/07/3-RawEquityCurve.png" class="img-fluid w-100 rounded mx-auto" alt="...">                    
-                        </div>
+                        <output> <img src="data:image/png;base64, {{ plot }}" alt="graph" width="150%" id="chart"> </output>
                     </div>
                     <div class="col-5">
                         <br>
                         <br>
                         <br>
+                        {# Strategy Inputs Section #}
                         <div class="row my-1">
-                            <div class="col-4 fs-2 text-end text-decoration-underline">Strategy Inputs</div>
+                            <div class="col-4 fs-2 text-left text-decoration-underline">Strategy Inputs:</div>
                         </div>                
-                        <div class="row my-1">
-                            <div class="col-4 fs-3 text-end">Starting Balance ($):</div>
+                        <div class="row my-1 mx-5 align-items-center">
+                            <div class="col-auto fs-3 text-left">Starting Balance ($):</div>
                             <div class="col-2">
                                 <input type="text" class="form-control form-control-md" id="startingBalance" value="100000">
                             </div>
                         </div>
-                        <div class="row my-1">
-                            <div class="col-4 fs-3 text-end">Base Risk per Trade:</div>
+                        <div class="row my-1 mx-5 align-items-center">
+                            <div class="col-auto fs-3 text-left">Risk: </div>
                             <div class="col-2">
                                 <input type="text" class="form-control form-control-md" id="baseRisk" value="1000">
                             </div>
-                            <div class="col-2">
+                            <div class="col-auto">
                                 <select class="form-select form-select-md">
                                     <option value="$">$</option>
                                     <option value="%">%</option>
                                 </select>
                             </div>
                         </div>
-                        <div class="row my-1">
-                            <div class="col-4 fs-3 text-end">Risk/Reward Ratio (R/R):</div>
-                            <div class="col-2">
-                                <input type="text" class="form-control form-control-md" id="riskToRewardRatio" value="2">
-                            </div>
+                        <div class="row my-1 mx-5 text-left">
+                            <label for="riskToRewardRatio" class="form-label fs-3">Risk-to-Reward Ratio: <output>2</output></label>
+                            <input type="range" class="form-range" min="1" max="10" step="0.5" id="riskToRewardRatio" value="2" oninput="this.previousElementSibling.lastChild.value = this.value">
+                        </div>                        
+                        <div class="row my-1 mx-5 text-left">
+                            <label for="winRate" class="form-label fs-3">Win Rate: <output>50</output>%</label>
+                            <input type="range" class="form-range" min="1" max="100" id="winRate" value="50" oninput="this.previousElementSibling.firstChild.nextSibling.value = this.value">
+                            
                         </div>
-                        <div class="row my-1">
-                            <div class="col-4 fs-3 text-end">Win Rate (%):</div>
-                            <div class="col-2">
-                                <input type="text" class="form-control form-control-md" id="winRate" value="50">
-                            </div>
+                        <div class="row my-1 mx-5 text-left">
+                            <label for="numTrades" class="form-label fs-3"># of Trades: <output>25</output></label>
+                            <input type="range" class="form-range" min="1" max="250" id="numTrades" value="25" oninput="this.previousElementSibling.lastChild.value = this.value">
                         </div>
-
+                        <div class="row my-1 mx-5 text-left">
+                            <label for="numSimulations" class="form-label fs-3"># of Simulations: <output>1</output></label>
+                            <input type="range" class="form-range" min="1" max="10" id="numSimulations" value="1" oninput="this.previousElementSibling.lastChild.value = this.value">
+                        </div>
                         <br>
+
+                        {# Risk Management Section #}
                         <div class="row my-1">
-                            <div class="col-4 fs-2 text-end text-decoration-underline">Risk Management</div>
-                        </div>                
+                            <div class="col-4 fs-2 text-left text-decoration-underline">Risk Management:</div>
+                        </div>
                         <div class="row my-1">
                             <div class="col-4 fs-3 text-end">Levels of Risk:</div>
                             <div class="col-2">
                                 <select class="form-select form-select-md">
-                                    <option value="1">1</option>
-                                    <option value="2">2</option>
-                                    <option value="3">3</option>
+                                    <option value="1">Full</option>
+                                    <option value="2">Full, 1/2</option>
+                                    <option value="3">Full, 1/2, 1/4</option>
                                 </select>
                             </div>
                         </div>
@@ -142,6 +227,6 @@
                 </div>
             </div>
 
-            {% endblock %}
+        {% endblock %}
     {% endblock %}
 </html>
