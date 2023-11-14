@@ -172,9 +172,19 @@
                             <div class="col-4 fs-3 text-end">Levels of Risk:</div>
                             <div class="col-2">
                                 <select class="form-select form-select-md">
-                                    <option value="1">Full</option>
-                                    <option value="2">Full, 1/2</option>
-                                    <option value="3">Full, 1/2, 1/4</option>
+                                    <option value="2">2: Full, 1/2</option>
+                                    <option value="3">3: Full, 1/2, 1/4</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row my-1">
+                            <div class="col-4 fs-3 text-end">Loss Management:</div>
+                            <div class="col-auto">
+                                <select class="form-select form-select-md">
+                                    <option value="1">None</option>
+                                    <option value="2">Reduce risk after each consecutive loss</option>
+                                    <option value="3">Reduce risk after max consecutive losses</option>
+                                    <option value="4">Reduce risk to lowest level after max consecutive losses</option>
                                 </select>
                             </div>
                         </div>
@@ -191,6 +201,16 @@
                             </div>
                         </div>
                         <div class="row my-1">
+                            <div class="col-4 fs-3 text-end">Win Management:</div>
+                            <div class="col-auto">
+                                <select class="form-select form-select-md">
+                                    <option value="1">None</option>
+                                    <option value="2">Reduce risk after max consecutive wins</option>
+                                    <option value="3">Reduce risk to lowest level after max consecutive wins</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="row my-1">
                             <div class="col-4 fs-3 text-end">Max Consecutive Wins:</div>
                             <div class="col-2">
                                 <select class="form-select form-select-md">
@@ -199,27 +219,6 @@
                                     <option value="3">3</option>
                                     <option value="4">4</option>
                                     <option value="5">5</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="row my-1">
-                            <div class="col-4 fs-3 text-end">Loss Management:</div>
-                            <div class="col-auto">
-                                <select class="form-select form-select-md">
-                                    <option value="1">None</option>
-                                    <option value="2">Reduce risk after each loss</option>
-                                    <option value="3">Reduce risk after max consecutive losses</option>
-                                    <option value="4">Reduce risk to lowest level after max consecutive losses</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div class="row my-1">
-                            <div class="col-4 fs-3 text-end">Win Management:</div>
-                            <div class="col-auto">
-                                <select class="form-select form-select-md">
-                                    <option value="1">None</option>
-                                    <option value="2">Reduce risk after max consecutive wins</option>
-                                    <option value="3">Reduce risk to lowest level after max consecutive wins</option>
                                 </select>
                             </div>
                         </div>
