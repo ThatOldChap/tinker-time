@@ -82,10 +82,16 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
                         loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels):
     
     def max_losses_hit(num_consecutive_losses, max_losses):
-        return num_consecutive_losses >= max_losses
+        result = num_consecutive_losses >= max_losses
+        if result:
+            print(f'Max number of consecutive wins hit: {num_consecutive_losses}/{max_losses}')
+        return result
 
     def max_wins_hit(num_consecutive_wins, max_wins):
-        return num_consecutive_wins >= max_wins
+        result = num_consecutive_wins >= max_wins
+        if result: 
+            print(f'Max number of consecutive wins hit: {num_consecutive_wins}/{max_wins}')
+        return result
     
     def get_lowest_risk_level(num_risk_levels):
         if num_risk_levels == 2:
@@ -97,9 +103,11 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
     def reduce_risk(current_risk_level, lowest_risk_level):
 
         if current_risk_level == RiskLevel.FULL:
+            print('Reducing risk from Full to Half.')
             return RiskLevel.HALF
         
         if current_risk_level == RiskLevel.HALF and lowest_risk_level.value < RiskLevel.HALF.value:
+            print('Reducing risk from Half to Quarter.')
             return RiskLevel.QUARTER
         
         else:
@@ -110,12 +118,15 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
     def increase_risk(current_risk_level):
 
         if current_risk_level == RiskLevel.FULL:
-            pass
+            print('Keep maintining risk at Full.')
+            return RiskLevel.FULL
 
         elif current_risk_level == RiskLevel.HALF:
+            print('Increasing risk from Half to Full.')
             return RiskLevel.FULL
         
         elif current_risk_level == RiskLevel.QUARTER:
+            print('Increasing risk from Quarter to Half.')
             return RiskLevel.HALF
 
     # Pre-Loop Calcs
@@ -145,7 +156,6 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
     trade_record.append(start_record)
 
     for i in range(num_trades):
-        print(f'Current Risk Level = {current_risk_level}')
 
         # Start at trade #1
         trade_num = i +1
@@ -153,7 +163,7 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
         # Trade is a Win
         if random() < win_threshold:
             current_trade_result = TradeRecord.WIN
-            print(f'Trade {trade_num} is a Win')
+            print(f'-----Trade {trade_num}: Win -----')
 
             # Initialize the prev_trade_result for comparison after the 1st trade
             if i == 0:
@@ -177,22 +187,20 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
             # No Win Management strategy used so keep the same risk
             if win_mgt == WinMgt.NONE:
                 new_risk_level = current_risk_level
+                print('No WinMgt strategy used, maintain current risk.')
 
             # Evaluate reducing risk if the max num of wins has been hit
             elif max_wins_hit(num_consecutive_wins, max_wins):
                 
-                if win_mgt == WinMgt.REDUCE_RISK_AFTER_MAX_NUM_WINS:
+                if win_mgt == WinMgt.REDUCE_RISK_AFTER_MAX_NUM_WINS:                    
                     new_risk_level = reduce_risk(current_risk_level, lowest_risk_level)
 
                 elif win_mgt == WinMgt.LOWEST_RISK_AFTER_MAX_NUM_WINS:
                     new_risk_level = lowest_risk_level
+                    print(f'Risk has been reduced to the lowest level: {new_risk_level}')
 
                 # Reset win counter to 0 if the risk has been reduced
                 num_consecutive_wins = 0
-
-            # Default to the same risk if no conditions are met
-            else:
-                new_risk_level = current_risk_level
 
             # Calculates the trade results in $ and R/R adjusting for the current risk level
             adj_win_RR = risk_to_reward_ratio * current_risk_level.value
@@ -205,7 +213,7 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
         # Trade is a Loss
         else:
             current_trade_result = TradeRecord.LOSS
-            print(f'Trade {trade_num} is a Loss')
+            print(f'-----Trade {trade_num}: Loss -----')
 
             # Initialize the prev_trade_result for comparison after the 1st trade
             if i == 0:
@@ -222,6 +230,7 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
             # No Loss Management strategy used so keep the same risk
             if loss_mgt == LossMgt.NONE:
                 new_risk_level = current_risk_level
+                print('No Loss strategy used, maintain current risk.')
 
             # Evaluate reducing risk if the max num of losses has been hit
             elif max_losses_hit(num_consecutive_losses, max_losses):
@@ -231,6 +240,7 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
 
                 elif loss_mgt == LossMgt.LOWEST_RISK_AFTER_MAX_NUM_LOSSES:
                     new_risk_level = lowest_risk_level
+                    print(f'Risk has been reduced to the lowest level: {new_risk_level}')
 
             # Default to the same risk if no conditions are met
             else:
