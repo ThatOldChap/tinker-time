@@ -8,6 +8,26 @@ from flask import render_template, request, jsonify
 
 from app import app
 
+# Helper enums
+class LossMgt(enum.Enum):
+    NONE = 0
+    REDUCE_RISK_AFTER_MAX_NUM_LOSSES = 1
+    LOWEST_RISK_AFTER_MAX_NUM_LOSSES = 2
+
+class WinMgt(enum.Enum):
+    NONE = 0
+    REDUCE_RISK_AFTER_MAX_NUM_WINS = 1
+    LOWEST_RISK_AFTER_MAX_NUM_WINS = 2
+    
+class RiskLevel(enum.Enum):
+    FULL = 1
+    HALF = 0.5
+    QUARTER = 0.25
+
+class TradeRecord(enum.Enum):
+    WIN = "Win"
+    LOSS = "Loss"
+
 # Default Values
 starting_balance = 100000
 base_risk = 1000
@@ -15,6 +35,11 @@ risk_to_reward_ratio = 2
 win_rate = 50
 num_trades = 25
 num_simulations = 1
+loss_mgt = LossMgt.NONE
+win_mgt = WinMgt.NONE
+max_losses = 0
+max_wins = 0
+num_risk_levels = 2
 
 # Debugging
 def get_pp():
@@ -25,7 +50,8 @@ def get_pp():
 @app.route('/index')
 def index():
 
-    plot = updatePlot(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, num_simulations)
+    plot = updatePlot(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, num_simulations, \
+                      loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels)
 
     return render_template('layout.html', plot = plot)
 
@@ -51,7 +77,8 @@ def update_chart():
         if key == 'numSimulations':
             num_simulations = int(value)
 
-    plot = updatePlot(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, num_simulations)
+    plot = updatePlot(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, num_simulations, \
+                      loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels)
 
     # Load the chart into the json response to update the image using jQuery
     response = {
@@ -62,12 +89,14 @@ def update_chart():
     return jsonify(response)
 
 
-def updatePlot(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, num_simulations):
+def updatePlot(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, num_simulations, \
+               loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels):
 
     plot = None
 
     for i in range(num_simulations):
-        record = generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate)
+        record = generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, \
+                                     loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels)
         data = generateChartData(record)
 
         if i == 0:
@@ -78,6 +107,7 @@ def updatePlot(starting_balance, risk_to_reward_ratio, base_risk, num_trades, wi
     return plot
 
 # TODO: Add a setting for starting level of risk (lowest or highest)
+# TODO: Add a setting for accounting for b/e trades so that the risk is unadjusted
 def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate,
                         loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels):
     
@@ -200,6 +230,7 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
                     print(f'Risk has been reduced to the lowest level: {new_risk_level}')
 
                 # Reset win counter to 0 if the risk has been reduced
+                # TODO: Double check this as there may be a bug that hits max wins again
                 num_consecutive_wins = 0
 
             # Calculates the trade results in $ and R/R adjusting for the current risk level
@@ -261,25 +292,6 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
     return trade_record
 
 
-class LossMgt(enum.Enum):
-    NONE = 0
-    REDUCE_RISK_AFTER_MAX_NUM_LOSSES = 1
-    LOWEST_RISK_AFTER_MAX_NUM_LOSSES = 2
-
-class WinMgt(enum.Enum):
-    NONE = 0
-    REDUCE_RISK_AFTER_MAX_NUM_WINS = 1
-    LOWEST_RISK_AFTER_MAX_NUM_WINS = 2
-    
-class RiskLevel(enum.Enum):
-    FULL = 1
-    HALF = 0.5
-    QUARTER = 0.25
-
-class TradeRecord(enum.Enum):
-    WIN = "Win"
-    LOSS = "Loss"
-
 def generateChartData(trade_record):
 
     x_values = []
@@ -290,7 +302,7 @@ def generateChartData(trade_record):
 
     for trade in trade_record:
         x_values.append(trade[0])
-        y_values.append(trade[5])
+        y_values.append(trade[4])
     
     return [x_values, y_values]
 

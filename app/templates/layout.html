@@ -34,6 +34,11 @@
             let WIN_RATE = 'winRate';
             let NUM_TRADES = 'numTrades';
             let NUM_SIMULATIONS = 'numSimulations';
+            let LEVELS_OF_RISK = 'levelsOfRisk';
+            let LOSS_MGT = 'lossMgt';
+            let MAX_LOSSES = 'maxLosses';
+            let WIN_MGT = 'winMgt';
+            let MAX_WINS = 'maxWins';
             let CHART = 'chart';
 
             // Tracking Values
@@ -43,6 +48,11 @@
             let winRate = 50;
             let numTrades = 25;
             let numSimulations = 1;
+            let levelsOfRisk = 2;
+            let lossMgt = 0;
+            let maxLosses = 1;
+            let winMgt = 0;
+            let maxWins = 1;
 
             // Ajax URLs
             let UPDATE_CHART_URL = '/update_chart';
@@ -71,6 +81,26 @@
                 numSimulations = event.target.value;
                 updateChart(UPDATE_CHART_URL);
             });
+            $(`#${LEVELS_OF_RISK}`).change(function(event) {
+                levelsOfRisk = event.target.value;
+                updateChart(UPDATE_CHART_URL);
+            });
+            $(`#${LOSS_MGT}`).change(function(event) {
+                lossMgt = event.target.value;
+                updateChart(UPDATE_CHART_URL);
+            });
+            $(`#${MAX_LOSSES}`).change(function(event) {
+                maxLosses = event.target.value;
+                updateChart(UPDATE_CHART_URL);
+            });
+            $(`#${WIN_MGT}`).change(function(event) {
+                winMgt = event.target.value;
+                updateChart(UPDATE_CHART_URL);
+            });
+            $(`#${MAX_WINS}`).change(function(event) {
+                maxWins = event.target.value;
+                updateChart(UPDATE_CHART_URL);
+            });
 
             function prepareData() {
                 let data = {
@@ -79,7 +109,12 @@
                     riskToRewardRatio: riskToRewardRatio,
                     winRate: winRate,
                     numTrades: numTrades,
-                    numSimulations: numSimulations
+                    numSimulations: numSimulations,
+                    levelsOfRisk: levelsOfRisk,
+                    lossMgt: lossMgt,
+                    maxLosses: maxLosses,
+                    winMgt: winMgt,
+                    maxWins: maxWins
                 };
                 return data
             }
@@ -171,7 +206,7 @@
                         <div class="row my-1">
                             <div class="col-4 fs-3 text-end">Levels of Risk:</div>
                             <div class="col-2">
-                                <select class="form-select form-select-md">
+                                <select class="form-select form-select-md" id="levelsOfRisk">
                                     <option value="2">2: Full, 1/2</option>
                                     <option value="3">3: Full, 1/2, 1/4</option>
                                 </select>
@@ -180,18 +215,17 @@
                         <div class="row my-1">
                             <div class="col-4 fs-3 text-end">Loss Management:</div>
                             <div class="col-auto">
-                                <select class="form-select form-select-md">
-                                    <option value="1">None</option>
-                                    <option value="2">Reduce risk after each consecutive loss</option>
-                                    <option value="3">Reduce risk after max consecutive losses</option>
-                                    <option value="4">Reduce risk to lowest level after max consecutive losses</option>
+                                <select class="form-select form-select-md" id="lossMgt">
+                                    <option value="0">None</option>
+                                    <option value="1">Reduce risk after max consecutive losses</option>
+                                    <option value="2">Reduce risk to lowest level after max consecutive losses</option>
                                 </select>
                             </div>
                         </div>
                         <div class="row my-1">
                             <div class="col-4 fs-3 text-end">Max Consecutive Losses:</div>
                             <div class="col-2">
-                                <select class="form-select form-select-md">
+                                <select class="form-select form-select-md" id="maxLosses">
                                     <option value="1">1</option>
                                     <option value="2">2</option>
                                     <option value="3">3</option>
@@ -203,17 +237,17 @@
                         <div class="row my-1">
                             <div class="col-4 fs-3 text-end">Win Management:</div>
                             <div class="col-auto">
-                                <select class="form-select form-select-md">
-                                    <option value="1">None</option>
-                                    <option value="2">Reduce risk after max consecutive wins</option>
-                                    <option value="3">Reduce risk to lowest level after max consecutive wins</option>
+                                <select class="form-select form-select-md" id="winMgt">
+                                    <option value="0">None</option>
+                                    <option value="1">Reduce risk after max consecutive wins</option>
+                                    <option value="2">Reduce risk to lowest level after max consecutive wins</option>
                                 </select>
                             </div>
                         </div>
                         <div class="row my-1">
                             <div class="col-4 fs-3 text-end">Max Consecutive Wins:</div>
                             <div class="col-2">
-                                <select class="form-select form-select-md">
+                                <select class="form-select form-select-md" id="maxWins">
                                     <option value="1">1</option>
                                     <option value="2">2</option>
                                     <option value="3">3</option>
