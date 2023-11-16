@@ -45,12 +45,15 @@ num_risk_levels = 2
 def get_pp():
     return pprint.PrettyPrinter()
 
-pp = get_pp()
-
 # Setup a logger
 #logging.basicConfig(stream=sys.stderr, level=logging.INFO)
 logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 logging.getLogger('matplotlib.font_manager').disabled = True
+
+
+# Initializations and Tracking Variables
+last_record = None
+pp = get_pp()
 
 
 @app.route('/')
@@ -175,7 +178,7 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
         elif current_risk_level == RiskLevel.QUARTER:
             logging.debug('Increasing risk from Quarter to Half.')
             return RiskLevel.HALF
-
+        
     # Pre-Loop Calcs
     win_threshold = win_rate / 100
     base_win_value = risk_to_reward_ratio * base_risk
@@ -195,6 +198,8 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
 
     prev_trade_result = None
     current_trade_result = None
+
+    # Extract the 
 
     # Table Formatting
     record_header = ['Trade #', 'Win/Loss', 'Risk (R)', 'P&L (R)', 'P&L ($)', 'Balance ($)']
@@ -226,13 +231,8 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
                 new_risk_level = increase_risk(current_risk_level)
                 num_consecutive_wins += 1
 
-            # No Win Management strategy used so keep the same risk
-            if win_mgt == WinMgt.NONE:
-                new_risk_level = current_risk_level
-                logging.debug('No WinMgt strategy used, maintain current risk.')
-
             # Evaluate reducing risk if the max num of wins has been hit
-            elif max_wins_hit(num_consecutive_wins, max_wins):
+            if max_wins_hit(num_consecutive_wins, max_wins):
                 
                 if win_mgt == WinMgt.REDUCE_RISK_AFTER_MAX_NUM_WINS:                    
                     new_risk_level = reduce_risk(current_risk_level, lowest_risk_level)
@@ -242,7 +242,7 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
                     logging.debug(f'Risk has been reduced to the lowest level: {new_risk_level}')
 
                 # Reset win counter to 0 if the risk has been reduced
-                # TODO: Double check this as there may be a bug that hits max wins again
+                # TODO: Review whether to start the counter on max wins at full risk
                 num_consecutive_wins = 0
 
             # Calculates the trade results in $ and R/R adjusting for the current risk level
@@ -271,16 +271,11 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
 
                 num_consecutive_losses += 1
 
-            # No Loss Management strategy used so keep the same risk
-            if loss_mgt == LossMgt.NONE:
-                new_risk_level = current_risk_level
-                logging.debug('No Loss strategy used, maintain current risk.')
-
             # Evaluate reducing risk if the max num of losses has been hit
-            elif max_losses_hit(num_consecutive_losses, max_losses):
+            if max_losses_hit(num_consecutive_losses, max_losses):
 
                 if loss_mgt == LossMgt.REDUCE_RISK_AFTER_MAX_NUM_LOSSES:
-                    new_risk_level = reduce_risk(current_risk_level, num_risk_levels)
+                    new_risk_level = reduce_risk(current_risk_level, lowest_risk_level)
 
                 elif loss_mgt == LossMgt.LOWEST_RISK_AFTER_MAX_NUM_LOSSES:
                     new_risk_level = lowest_risk_level
@@ -303,8 +298,14 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
         current_risk_level = new_risk_level
         prev_trade_result = current_trade_result
 
+    # Store the last record for any futher alterations
+    last_record = trade_record
     logging.debug(pp.pprint(trade_record))
+
     return trade_record
+
+def alterTradeRecord():
+    pass
 
 
 def generateChartData(trade_record):
