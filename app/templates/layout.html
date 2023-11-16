@@ -34,7 +34,7 @@
             let WIN_RATE = 'winRate';
             let NUM_TRADES = 'numTrades';
             let NUM_SIMULATIONS = 'numSimulations';
-            let LEVELS_OF_RISK = 'levelsOfRisk';
+            let NUM_RISK_LEVELS = 'numRiskLevels';
             let LOSS_MGT = 'lossMgt';
             let MAX_LOSSES = 'maxLosses';
             let WIN_MGT = 'winMgt';
@@ -48,14 +48,17 @@
             let winRate = 50;
             let numTrades = 25;
             let numSimulations = 1;
-            let levelsOfRisk = 2;
+            let numRiskLevels = 2;
             let lossMgt = 0;
             let maxLosses = 1;
             let winMgt = 0;
-            let maxWins = 1;
+            let maxWins = 2;
 
             // Ajax URLs
             let UPDATE_CHART_URL = '/update_chart';
+
+            // Reset the sliders/dropdowns to defaults in case of stale settings
+            resetPageFields();
 
             $(`#${STARTING_BALANCE}`).change(function(event) {
                 startingBalance = event.target.value;
@@ -81,8 +84,8 @@
                 numSimulations = event.target.value;
                 updateChart(UPDATE_CHART_URL);
             });
-            $(`#${LEVELS_OF_RISK}`).change(function(event) {
-                levelsOfRisk = event.target.value;
+            $(`#${NUM_RISK_LEVELS}`).change(function(event) {
+                numRiskLevels = event.target.value;
                 updateChart(UPDATE_CHART_URL);
             });
             $(`#${LOSS_MGT}`).change(function(event) {
@@ -110,7 +113,7 @@
                     winRate: winRate,
                     numTrades: numTrades,
                     numSimulations: numSimulations,
-                    levelsOfRisk: levelsOfRisk,
+                    numRiskLevels: numRiskLevels,
                     lossMgt: lossMgt,
                     maxLosses: maxLosses,
                     winMgt: winMgt,
@@ -137,6 +140,20 @@
                         console.log(error);
                     }
                 });
+            }
+
+            function resetPageFields() {
+                ($(`#${STARTING_BALANCE}`).val() != startingBalance) ? $(`#${STARTING_BALANCE}`).val(startingBalance) : true;
+                ($(`#${BASE_RISK}`).val() != baseRisk) ? $(`#${BASE_RISK}`).val(baseRisk) : true;
+                ($(`#${RISK_TO_REWARD_RATIO}`).val() != riskToRewardRatio) ? $(`#${RISK_TO_REWARD_RATIO}`).val(riskToRewardRatio) : true;
+                ($(`#${WIN_RATE}`).val() != winRate) ? $(`#${WIN_RATE}`).val(winRate) : true;
+                ($(`#${NUM_TRADES}`).val() != numTrades) ? $(`#${NUM_TRADES}`).val(numTrades) : true;
+                ($(`#${NUM_SIMULATIONS}`).val() != numSimulations) ? $(`#${NUM_SIMULATIONS}`).val(numSimulations) : true;
+                ($(`#${NUM_RISK_LEVELS}`).val() != numRiskLevels) ? $(`#${NUM_RISK_LEVELS}`).val(numRiskLevels) : true;
+                ($(`#${LOSS_MGT}`).val() != lossMgt) ? $(`#${LOSS_MGT}`).val(lossMgt) : true;
+                ($(`#${MAX_LOSSES}`).val() != maxLosses) ? $(`#${MAX_LOSSES}`).val(maxLosses) : true;
+                ($(`#${WIN_MGT}`).val() != winMgt) ? $(`#${WIN_MGT}`).val(winMgt) : true;
+                ($(`#${MAX_WINS}`).val() != maxWins) ? $(`#${MAX_WINS}`).val(maxWins) : true;  
             }
 
         });
@@ -205,8 +222,8 @@
                         </div>
                         <div class="row my-1">
                             <div class="col-4 fs-3 text-end">Levels of Risk:</div>
-                            <div class="col-2">
-                                <select class="form-select form-select-md" id="levelsOfRisk">
+                            <div class="col-auto">
+                                <select class="form-select form-select-md" id="numRiskLevels">
                                     <option value="2">2: Full, 1/2</option>
                                     <option value="3">3: Full, 1/2, 1/4</option>
                                 </select>
@@ -224,7 +241,7 @@
                         </div>
                         <div class="row my-1">
                             <div class="col-4 fs-3 text-end">Max Consecutive Losses:</div>
-                            <div class="col-2">
+                            <div class="col-auto">
                                 <select class="form-select form-select-md" id="maxLosses">
                                     <option value="1">1</option>
                                     <option value="2">2</option>
@@ -246,9 +263,8 @@
                         </div>
                         <div class="row my-1">
                             <div class="col-4 fs-3 text-end">Max Consecutive Wins:</div>
-                            <div class="col-2">
+                            <div class="col-auto">
                                 <select class="form-select form-select-md" id="maxWins">
-                                    <option value="1">1</option>
                                     <option value="2">2</option>
                                     <option value="3">3</option>
                                     <option value="4">4</option>

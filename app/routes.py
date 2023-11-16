@@ -1,5 +1,5 @@
 import enum
-import io
+import io, logging, sys
 import pprint, urllib, base64
 from random import random
 import matplotlib.pyplot as plt
@@ -38,12 +38,19 @@ num_simulations = 1
 loss_mgt = LossMgt.NONE
 win_mgt = WinMgt.NONE
 max_losses = 0
-max_wins = 0
+max_wins = 2                # Max # of wins < 2 results in never being able to increase risk with b2b wins
 num_risk_levels = 2
 
 # Debugging
 def get_pp():
     return pprint.PrettyPrinter()
+
+pp = get_pp()
+
+# Setup a logger
+#logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+logging.getLogger('matplotlib.font_manager').disabled = True
 
 
 @app.route('/')
@@ -61,21 +68,31 @@ def update_chart():
 
     # Extract the request's form dictionary
     data = request.form.to_dict()
-    print(data)
+    logging.debug(pp.pprint(data))
     for key, value in data.items():        
 
         if key == 'startingBalance':     
             starting_balance = int(value)
-        if key == 'baseRisk':            
-            base_risk = float(value)
         if key == 'riskToRewardRatio':           
             risk_to_reward_ratio = float(value)
-        if key == 'winRate':            
-            win_rate = int(value)
+        if key == 'baseRisk':            
+            base_risk = float(value)
         if key == 'numTrades':   
             num_trades = int(value)
+        if key == 'winRate':            
+            win_rate = int(value)
         if key == 'numSimulations':
             num_simulations = int(value)
+        if key == 'lossMgt':
+            loss_mgt = LossMgt(int(value))
+        if key == 'winMgt':
+            win_mgt = WinMgt(int(value))
+        if key == 'maxLosses':
+            max_losses = int(value)
+        if key == 'maxWins':
+            max_wins = int(value)
+        if key == 'numRiskLevels':
+            num_risk_levels = int(value)
 
     plot = updatePlot(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, num_simulations, \
                       loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels)
@@ -114,13 +131,13 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
     def max_losses_hit(num_consecutive_losses, max_losses):
         result = num_consecutive_losses >= max_losses
         if result:
-            print(f'Max number of consecutive wins hit: {num_consecutive_losses}/{max_losses}')
+            logging.debug(f'Max number of consecutive losses hit: {num_consecutive_losses}/{max_losses}')
         return result
 
     def max_wins_hit(num_consecutive_wins, max_wins):
         result = num_consecutive_wins >= max_wins
         if result: 
-            print(f'Max number of consecutive wins hit: {num_consecutive_wins}/{max_wins}')
+            logging.debug(f'Max number of consecutive wins hit: {num_consecutive_wins}/{max_wins}')
         return result
     
     def get_lowest_risk_level(num_risk_levels):
@@ -133,11 +150,11 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
     def reduce_risk(current_risk_level, lowest_risk_level):
 
         if current_risk_level == RiskLevel.FULL:
-            print('Reducing risk from Full to Half.')
+            logging.debug('Reducing risk from Full to Half.')
             return RiskLevel.HALF
         
         if current_risk_level == RiskLevel.HALF and lowest_risk_level.value < RiskLevel.HALF.value:
-            print('Reducing risk from Half to Quarter.')
+            logging.debug('Reducing risk from Half to Quarter.')
             return RiskLevel.QUARTER
         
         else:
@@ -148,15 +165,15 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
     def increase_risk(current_risk_level):
 
         if current_risk_level == RiskLevel.FULL:
-            print('Keep maintining risk at Full.')
+            logging.debug('Keep maintining risk at Full.')
             return RiskLevel.FULL
 
         elif current_risk_level == RiskLevel.HALF:
-            print('Increasing risk from Half to Full.')
+            logging.debug('Increasing risk from Half to Full.')
             return RiskLevel.FULL
         
         elif current_risk_level == RiskLevel.QUARTER:
-            print('Increasing risk from Quarter to Half.')
+            logging.debug('Increasing risk from Quarter to Half.')
             return RiskLevel.HALF
 
     # Pre-Loop Calcs
@@ -180,8 +197,8 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
     current_trade_result = None
 
     # Table Formatting
-    record_header = ['Trade #', 'Win/Loss', 'R/R', 'P&L ($)', 'Balance ($)']
-    start_record = [0, '-', '-', '-', starting_balance]    
+    record_header = ['Trade #', 'Win/Loss', 'Risk (R)', 'P&L (R)', 'P&L ($)', 'Balance ($)']
+    start_record = [0, '-', '-', '-', '-', starting_balance]    
     trade_record = [record_header]
     trade_record.append(start_record)
 
@@ -193,7 +210,7 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
         # Trade is a Win
         if random() < win_threshold:
             current_trade_result = TradeRecord.WIN
-            print(f'-----Trade {trade_num}: Win -----')
+            logging.debug(f'-----Trade {trade_num}: Win -----')
 
             # Initialize the prev_trade_result for comparison after the 1st trade
             if i == 0:
@@ -205,19 +222,14 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
                 if prev_trade_result == TradeRecord.LOSS:
                     num_consecutive_losses = 0
 
-                    # Increase risk by a level if the previous trade was a Loss
-                    new_risk_level = increase_risk(current_risk_level)
-                
-                # Increase risk level if previously reduced with a WinMgt strategy
-                elif prev_trade_result == TradeRecord.WIN and current_risk_level.value < 1:
-                    new_risk_level = increase_risk(current_risk_level)
-
+                # Increase risk level every time a single win is achieved
+                new_risk_level = increase_risk(current_risk_level)
                 num_consecutive_wins += 1
 
             # No Win Management strategy used so keep the same risk
             if win_mgt == WinMgt.NONE:
                 new_risk_level = current_risk_level
-                print('No WinMgt strategy used, maintain current risk.')
+                logging.debug('No WinMgt strategy used, maintain current risk.')
 
             # Evaluate reducing risk if the max num of wins has been hit
             elif max_wins_hit(num_consecutive_wins, max_wins):
@@ -227,7 +239,7 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
 
                 elif win_mgt == WinMgt.LOWEST_RISK_AFTER_MAX_NUM_WINS:
                     new_risk_level = lowest_risk_level
-                    print(f'Risk has been reduced to the lowest level: {new_risk_level}')
+                    logging.debug(f'Risk has been reduced to the lowest level: {new_risk_level}')
 
                 # Reset win counter to 0 if the risk has been reduced
                 # TODO: Double check this as there may be a bug that hits max wins again
@@ -239,12 +251,13 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
             current_balance += adj_win_value
 
             # Log the trade in the record
-            trade_record.append([trade_num, current_trade_result.value, f'+{adj_win_RR}R', f'+{adj_win_value}', current_balance])
+            trade_record.append([trade_num, current_trade_result.value, f'{current_risk_level.value}R', \
+                                 f'+{adj_win_RR}R', f'+{adj_win_value}', current_balance])
 
         # Trade is a Loss
         else:
             current_trade_result = TradeRecord.LOSS
-            print(f'-----Trade {trade_num}: Loss -----')
+            logging.debug(f'-----Trade {trade_num}: Loss -----')
 
             # Initialize the prev_trade_result for comparison after the 1st trade
             if i == 0:
@@ -261,7 +274,7 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
             # No Loss Management strategy used so keep the same risk
             if loss_mgt == LossMgt.NONE:
                 new_risk_level = current_risk_level
-                print('No Loss strategy used, maintain current risk.')
+                logging.debug('No Loss strategy used, maintain current risk.')
 
             # Evaluate reducing risk if the max num of losses has been hit
             elif max_losses_hit(num_consecutive_losses, max_losses):
@@ -271,7 +284,7 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
 
                 elif loss_mgt == LossMgt.LOWEST_RISK_AFTER_MAX_NUM_LOSSES:
                     new_risk_level = lowest_risk_level
-                    print(f'Risk has been reduced to the lowest level: {new_risk_level}')
+                    logging.debug(f'Risk has been reduced to the lowest level: {new_risk_level}')
 
             # Default to the same risk if no conditions are met
             else:
@@ -283,12 +296,14 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
             current_balance -= adj_loss_value
             
             # Log the trade in the record
-            trade_record.append([trade_num, current_trade_result.value, f'{adj_loss_RR}R', f'-{adj_loss_value}', current_balance])
+            trade_record.append([trade_num, current_trade_result.value, f'{current_risk_level.value}R', \
+                                 f'{adj_loss_RR}R', f'-{adj_loss_value}', current_balance])
     
         # Updates lookback variables
         current_risk_level = new_risk_level
         prev_trade_result = current_trade_result
 
+    logging.debug(pp.pprint(trade_record))
     return trade_record
 
 
@@ -302,7 +317,7 @@ def generateChartData(trade_record):
 
     for trade in trade_record:
         x_values.append(trade[0])
-        y_values.append(trade[4])
+        y_values.append(trade[5])
     
     return [x_values, y_values]
 
