@@ -28,6 +28,7 @@
             $(document).ready(function() {       
 
             // ID Constants
+            let CHART = 'chart';
             let STARTING_BALANCE = 'startingBalance';
             let BASE_RISK = 'baseRisk';
             let RISK_TO_REWARD_RATIO = 'riskToRewardRatio';
@@ -39,7 +40,7 @@
             let MAX_LOSSES = 'maxLosses';
             let WIN_MGT = 'winMgt';
             let MAX_WINS = 'maxWins';
-            let CHART = 'chart';
+            let COMPARE_BASELINE = 'compareBaseline';
 
             // Tracking Values
             let startingBalance = 100000;
@@ -53,12 +54,14 @@
             let maxLosses = 1;
             let winMgt = 0;
             let maxWins = 2;
+            let compareBaseline = false;
 
             // Ajax URLs
             let UPDATE_CHART_URL = '/update_chart';
 
             // Reset the sliders/dropdowns to defaults in case of stale settings
             resetPageFields();
+            console.log($(`#${COMPARE_BASELINE}`).prop("checked"))
 
             $(`#${STARTING_BALANCE}`).change(function(event) {
                 startingBalance = event.target.value;
@@ -103,6 +106,23 @@
             $(`#${MAX_WINS}`).change(function(event) {
                 maxWins = event.target.value;
                 updateChart(UPDATE_CHART_URL);
+            });            
+            $(`#${COMPARE_BASELINE}`).change(function(event) {  
+                // Sets the value for the switch to be on/off when clicked              
+                (this.checked) ? $(`#${COMPARE_BASELINE}`).attr('value', 'true') : $(`#${COMPARE_BASELINE}`).attr('value', 'false');
+                compareBaseline = $(`#${COMPARE_BASELINE}`).val();
+
+                // Set the numSimulations back to 1 so that only a single simulation is shown when in compareBaseline mode
+                if (compareBaseline == 'true') {
+                    numSimulations = 1;
+                    $(`#${NUM_SIMULATIONS}`).val(numSimulations);
+                    $(`#${NUM_SIMULATIONS}`).prev().children().val(numSimulations);
+                    $(`#${NUM_SIMULATIONS}`).prop('disabled', 'disabled');
+                } else {
+                    $(`#${NUM_SIMULATIONS}`).prop('disabled', '');
+                }
+
+                updateChart(UPDATE_CHART_URL);
             });
 
             function prepareData() {
@@ -117,7 +137,8 @@
                     lossMgt: lossMgt,
                     maxLosses: maxLosses,
                     winMgt: winMgt,
-                    maxWins: maxWins
+                    maxWins: maxWins,
+                    compareBaseline: compareBaseline
                 };
                 return data
             }
@@ -153,7 +174,8 @@
                 ($(`#${LOSS_MGT}`).val() != lossMgt) ? $(`#${LOSS_MGT}`).val(lossMgt) : true;
                 ($(`#${MAX_LOSSES}`).val() != maxLosses) ? $(`#${MAX_LOSSES}`).val(maxLosses) : true;
                 ($(`#${WIN_MGT}`).val() != winMgt) ? $(`#${WIN_MGT}`).val(winMgt) : true;
-                ($(`#${MAX_WINS}`).val() != maxWins) ? $(`#${MAX_WINS}`).val(maxWins) : true;  
+                ($(`#${MAX_WINS}`).val() != maxWins) ? $(`#${MAX_WINS}`).val(maxWins) : true;                
+                ($(`#${COMPARE_BASELINE}`).prop("checked")) ? $(`#${COMPARE_BASELINE}`).prop("checked", false) : true;
             }
 
         });
@@ -215,10 +237,10 @@
                             <input type="range" class="form-range" min="1" max="10" id="numSimulations" value="1" oninput="this.previousElementSibling.lastChild.value = this.value">
                         </div>
                         <br>
-
+                        <hr class="my-3">
                         {# Risk Management Section #}
                         <div class="row my-1">
-                            <div class="col-4 fs-2 text-left text-decoration-underline">Risk Management:</div>
+                            <div class="col-4 fs-2 text-left text-decoration-underline">Risk Management:</div>                            
                         </div>
                         <div class="row my-1">
                             <div class="col-4 fs-3 text-end">Levels of Risk:</div>
@@ -272,8 +294,15 @@
                                 </select>
                             </div>
                         </div>
+                        <div class="row my-1">
+                        <div class="col-4 fs-3 text-end">Compare Baseline:</div>
+                            <div class="col-2 fs-2 form-check form-switch">
+                                <input class="form-check-input" type="checkbox" role="switch" id="compareBaseline">
+                            </div>
+                        </div>
                     </div>
                 </div>
+                {# <hr class="my-3"> #}
             </div>
 
         {% endblock %}
