@@ -40,6 +40,7 @@ win_mgt = WinMgt.NONE
 max_losses = 1              # Max # of losses starts with 1
 max_wins = 2                # Max # of wins < 2 results in never being able to increase risk with b2b wins
 num_risk_levels = 2
+compare_baseline = False
 
 # Debugging
 def get_pp():
@@ -62,7 +63,7 @@ pp = get_pp()
 def index():
 
     plot = updatePlot(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, num_simulations, \
-                      loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels)
+                      loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels, compare_baseline)
 
     return render_template('layout.html', plot = plot)
 
@@ -97,9 +98,15 @@ def update_chart():
             max_wins = int(value)
         if key == 'numRiskLevels':
             num_risk_levels = int(value)
+        if key == 'compareBaseline':
+            if value == 'false':
+                compare_baseline = False
+            elif value == 'true':
+                compare_baseline = True
+            
 
     plot = updatePlot(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, num_simulations, \
-                      loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels)
+                      loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels, compare_baseline)
 
     # Load the chart into the json response to update the image using jQuery
     response = {
@@ -111,19 +118,19 @@ def update_chart():
 
 
 def updatePlot(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, num_simulations, \
-               loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels):
+               loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels, compare_baseline):
 
     plot = None
 
     for i in range(num_simulations):
         record = generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, \
-                                     loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels)
-        data = generateChartData(record)
+                                    loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels)
+        data = generateChartData(record, compare_baseline)
 
         if i == 0:
-            plot = generateChart(data[0], data[1], True)
+            plot = generateBaselineChart(data[0], data[1], True)
         else:
-            plot = generateChart(data[0], data[1], False)
+            plot = generateBaselineChart(data[0], data[1], False)
 
     return plot
 
@@ -402,22 +409,25 @@ def merge_records(main_record, altered_record):
     return merged_record
 
 
-def generateChartData(trade_record):
+def generateChartData(trade_record, compare_baseline):
 
     x_values = []
-    y_values = []
+    y1_values = []
+    y2_values = []
 
     # Remove the header row before processing
     trade_record.pop(0)
 
     for trade in trade_record:
         x_values.append(trade[0])
-        y_values.append(trade[5])
+        y1_values.append(trade[5])
+        if compare_baseline:
+            y2_values.append(trade[10])
     
-    return [x_values, y_values]
+    return [x_values, y1_values, y2_values]
 
 
-def generateChart(x_values, y_values, clear_plot):
+def generateBaselineChart(x_values, y_values, clear_plot):
 
     # Clear the chart to start with new data each time
     if clear_plot:
@@ -431,11 +441,21 @@ def generateChart(x_values, y_values, clear_plot):
     plt.xlabel('# of Trades')
     plt.ylabel('Account Balance')
 
+    plot = get_plot_img(plt)
+
+    return plot
+
+
+def generateCompareChart(x_values, y_values, clear_plot):
+    pass
+
+
+
+def get_plot_img(plt):
     img = io.BytesIO()
     plt.savefig(img, format = 'png')
     img.seek(0)
     plot = urllib.parse.quote(base64.b64encode(img.read()).decode())
-
     return plot
 
 
