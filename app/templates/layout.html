@@ -41,6 +41,7 @@
             let WIN_MGT = 'winMgt';
             let MAX_WINS = 'maxWins';
             let COMPARE_BASELINE = 'compareBaseline';
+            let BASELINE_HAS_UPDATED = 'baselineHasUpdated';
 
             // Tracking Values
             let startingBalance = 100000;
@@ -55,6 +56,7 @@
             let winMgt = 0;
             let maxWins = 2;
             let compareBaseline = false;
+            let baselineHasUpdated = false;
 
             // Ajax URLs
             let UPDATE_CHART_URL = '/update_chart';
@@ -65,22 +67,27 @@
 
             $(`#${STARTING_BALANCE}`).change(function(event) {
                 startingBalance = event.target.value;
+                baselineHasUpdated = true;
                 updateChart(UPDATE_CHART_URL);
             });
             $(`#${BASE_RISK}`).change(function(event) {
                 baseRisk = event.target.value;
+                baselineHasUpdated = true;
                 updateChart(UPDATE_CHART_URL);
             });
             $(`#${RISK_TO_REWARD_RATIO}`).change(function(event) {
                 riskToRewardRatio = event.target.value;
+                baselineHasUpdated = true;
                 updateChart(UPDATE_CHART_URL);
             });
             $(`#${WIN_RATE}`).change(function(event) {
                 winRate = event.target.value;
+                baselineHasUpdated = true;
                 updateChart(UPDATE_CHART_URL);
             });
             $(`#${NUM_TRADES}`).change(function(event) {
                 numTrades = event.target.value;
+                baselineHasUpdated = true;
                 updateChart(UPDATE_CHART_URL);
             });
             $(`#${NUM_SIMULATIONS}`).change(function(event) {
@@ -89,22 +96,27 @@
             });
             $(`#${NUM_RISK_LEVELS}`).change(function(event) {
                 numRiskLevels = event.target.value;
+                baselineHasUpdated = false;
                 updateChart(UPDATE_CHART_URL);
             });
             $(`#${LOSS_MGT}`).change(function(event) {
                 lossMgt = event.target.value;
+                baselineHasUpdated = false;
                 updateChart(UPDATE_CHART_URL);
             });
             $(`#${MAX_LOSSES}`).change(function(event) {
                 maxLosses = event.target.value;
+                baselineHasUpdated = false;
                 updateChart(UPDATE_CHART_URL);
             });
             $(`#${WIN_MGT}`).change(function(event) {
                 winMgt = event.target.value;
+                baselineHasUpdated = false;
                 updateChart(UPDATE_CHART_URL);
             });
             $(`#${MAX_WINS}`).change(function(event) {
                 maxWins = event.target.value;
+                baselineHasUpdated = false;
                 updateChart(UPDATE_CHART_URL);
             });            
             $(`#${COMPARE_BASELINE}`).change(function(event) {  
@@ -121,7 +133,7 @@
                 } else {
                     $(`#${NUM_SIMULATIONS}`).prop('disabled', '');
                 }
-
+                baselineHasUpdated = false;
                 updateChart(UPDATE_CHART_URL);
             });
 
@@ -138,7 +150,8 @@
                     maxLosses: maxLosses,
                     winMgt: winMgt,
                     maxWins: maxWins,
-                    compareBaseline: compareBaseline
+                    compareBaseline: compareBaseline,
+                    baselineHasUpdated: baselineHasUpdated
                 };
                 return data
             }
