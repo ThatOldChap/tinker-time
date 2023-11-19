@@ -67,6 +67,7 @@
             let COMPARE_BASELINE = 'compareBaseline';
             let BASELINE_HAS_UPDATED = 'baselineHasUpdated';
             let DOWNLOAD_RECORD = 'downloadRecord';
+            let CHART_SIZE = 'chartSize'
 
             // Tracking Values
             let startingBalance = 100000;
@@ -83,6 +84,7 @@
             let maxWins = 2;
             let compareBaseline = false;
             let baselineHasUpdated = false;
+            let chartSize = 75
 
             // Ajax URLs
             let UPDATE_CHART_URL = '/update_chart';
@@ -184,6 +186,12 @@
                 baselineHasUpdated = false;
                 updateChart(UPDATE_CHART_URL);
             });
+            // Set a slider to adjust the chart size if the size is funky
+            $(`#${CHART_SIZE}`).change(function(event) {
+                chartSize = event.target.value;
+                $(`#${CHART}`).attr('width', `${chartSize}%`);
+            });   
+
 
             function prepareData() {
                 let data = {
@@ -239,6 +247,7 @@
                 ($(`#${WIN_MGT}`).val() != winMgt) ? $(`#${WIN_MGT}`).val(winMgt) : true;
                 ($(`#${MAX_WINS}`).val() != maxWins) ? $(`#${MAX_WINS}`).val(maxWins) : true;                
                 ($(`#${COMPARE_BASELINE}`).prop("checked")) ? $(`#${COMPARE_BASELINE}`).prop("checked", false) : true;
+                ($(`#${CHART_SIZE}`).val() != 75) ? $(`#${CHART_SIZE}`).val(75) : true;
             }
 
         });
@@ -263,7 +272,7 @@
             <div class="container-fluid text-center">
                 <div class="row text-center justify-content-between">
                     <div class="col-7 justify-self-start">
-                        <output> <img src="data:image/png;base64, {{ plot }}" alt="graph" id="chart"> </output>
+                        <output> <img src="data:image/png;base64, {{ plot }}" alt="graph" id="chart" width="75%"> </output>
                     </div>
                     <div class="col-5 justify-self-end">
                         <br>
@@ -298,7 +307,6 @@
                         <div class="row my-1 mx-5 text-left">
                             <label for="winRate" class="form-label fs-3">Win Rate: <output>50</output>%</label>
                             <input type="range" class="form-range" min="1" max="100" id="winRate" value="50" oninput="this.previousElementSibling.firstChild.nextSibling.value = this.value">
-                            
                         </div>
                         <div class="row my-1 mx-5 text-left">
                             <label for="numTrades" class="form-label fs-3"># of Trades: <output>25</output></label>
@@ -384,6 +392,10 @@
                                 <a class="btn btn-primary" id="downloadRecord" role="button" href="{{ url_for('download_record') }}">Download Record (.xlsx)</a>                                    
                             </div>
                         </div>
+                    </div>
+                    <div class="col-7 my-1">
+                        <label for="chartSize" class="form-label fs-5">Chart Size:<output>75</output>%</label>
+                        <input type="range" class="form-range" min="1" max="100" id="chartSize" value="100" oninput="this.previousElementSibling.firstChild.nextSibling.value = this.value">
                     </div>
                 </div>
                 {# <hr class="my-3"> #}
