@@ -128,18 +128,15 @@ def update_chart():
     compare_enabled = compare_baseline and not last_compare_baseline
     compare_disabled = not compare_baseline and last_compare_baseline
 
-    # Reset the compare switch trackers if the switch is not clicked
-    """ if not compare_enabled and not compare_disabled:
-        compare_enabled = False
-        compare_disabled = False """
-
     if compare_enabled:
         # Create compare chart with new baseline and using the original baseline as the altered
         if risk_mgt_enabled:
             message = 'Compare switch has been enabled with a RiskMgt strategy being used'
             baseline = alterTradeRecord(last_record, starting_balance, risk_to_reward_ratio, base_risk, \
                                         LossMgt.NONE, WinMgt.NONE, max_losses, max_wins, num_risk_levels)
-            compared = last_record
+            #compared = last_record
+            compared = alterTradeRecord(baseline, starting_balance, risk_to_reward_ratio, base_risk, loss_mgt, \
+                                        win_mgt, max_losses, max_wins, num_risk_levels)
             plot = generateCompareChart(baseline, compared, compare_baseline)
 
             # Cache the appropriate records
@@ -180,7 +177,7 @@ def update_chart():
             
             # Create compare chart with new baseline and new altered data
             elif risk_mgt_enabled:
-                logging.debug('Compare Baseline is enabled with a RiskMgt strategy being used')
+                message = 'Compare Baseline is enabled with a RiskMgt strategy being used'
                 baseline = generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, \
                                                 LossMgt.NONE, WinMgt.NONE, max_losses, max_wins, num_risk_levels)
                 compared = alterTradeRecord(baseline, starting_balance, risk_to_reward_ratio, base_risk, loss_mgt, \
@@ -697,9 +694,10 @@ def plotCompareChart(x_values, y1_values, y2_values, clear_plot):
     y1_points = np.array(y1_values)
     y2_points = np.array(y2_values)
 
-    plt.plot(x_points, y1_points)
-    plt.plot(x_points, y2_points)
+    plt.plot(x_points, y1_points, label='Baseline')
+    plt.plot(x_points, y2_points, label='w/ Risk Mgt')
     plt.title('Equity Curve - Baseline vs. Risk Management')
+    plt.legend(loc="upper left")
     plt.xlabel('# of Trades')
     plt.ylabel('Account Balance')
 
