@@ -1,10 +1,15 @@
-import enum
-import io, logging, sys
+import enum, os
+import io, logging, sys, openpyxl
 import pprint, urllib, base64
+from pathlib import Path
 from random import random
 import matplotlib.pyplot as plt
+import matplotlib.ticker as tkr
 import numpy as np
-from flask import render_template, request, jsonify
+from flask import render_template, request, jsonify, send_from_directory, flash, url_for
+from matplotlib import rcParams
+from datetime import datetime
+from time import strptime
 
 from app import app
 
@@ -43,6 +48,18 @@ num_risk_levels = 2
 compare_baseline = False
 risk_mgt_enabled = False
 
+# Setup the directory to store any temp files
+# basedir = '/tinker-time/app'
+basedir = os.path.abspath(".")
+tmpdir = basedir + '/app/tmp/'
+print(f'basedir = {os.path.abspath(".")}')
+print(f'tmpdir = {tmpdir}')
+print(f'cwd = {Path.cwd()}')
+
+
+# Sets the bounds for the plot so no labels are cutoff
+rcParams.update({'figure.autolayout': True})
+
 # Debugging
 def get_pp():
     return pprint.PrettyPrinter(width="200")
@@ -57,6 +74,8 @@ pp = get_pp()
 # Cache Variables
 last_record = None
 last_altered_record = None
+last_merged_record = None
+last_record_list = None
 last_plot = None
 last_compare_baseline = False
 
@@ -82,7 +101,7 @@ def index():
 @app.route('/update_chart', methods=['POST'])
 def update_chart():
 
-    global last_plot, last_compare_baseline, last_record, last_altered_record
+    global last_plot, last_compare_baseline, last_record, last_altered_record, last_record_list
     baseline_has_updated = False    # This can probably be deleted
 
     # Extract the request's form dictionary
@@ -221,7 +240,7 @@ def update_chart():
             plot = generateBaselineChart(new_baseline)
             
             # Cache the appropriate records
-            last_record = baseline                
+            last_record = new_baseline                
 
         # Create a new baseline chart if any Strategy parameters are updated
         #elif baseline_has_updated:
@@ -237,38 +256,18 @@ def update_chart():
 
             # Cache the appropriate records
             last_record = baseline_list[-1]
+            last_record_list = baseline_list
 
     
     else:
         message = 'Undetermined case'
         
-
     # Cache tracking variables 
     last_plot = plot
     last_compare_baseline = compare_baseline
-    logging.debug(message)
-        
-    """  # When the compare_baseline switch is turned off, remove the compared series from the original plot
-    if not compare_baseline and not baseline_has_updated:    
-        data = generateChartData(last_record, compare_baseline)
-        plot = generateBaselineChart(data[0], data[1], True)
     
-    # If the compare_baseline switch is enabled but no RiskMgt params are set, still update the baseline chart
-    elif compare_baseline and baseline_has_updated and risk_mgt_enabled:
-        plot = updateBaselineChart(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, \
-                                    num_simulations, loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels)
-
-    # Update the compared chart any time the switch is enabled
-    elif compare_baseline:
-        plot = updateCompareChart(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, loss_mgt, \
-                                  win_mgt, max_losses, max_wins, num_risk_levels, compare_baseline, baseline_has_updated, \
-                                  risk_mgt_enabled)
-    else:    
-        plot = updateBaselineChart(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, \
-                                    num_simulations, loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels) """
-        
-
     # Load the chart into the json response to update the image using jQuery
+    logging.debug(message)
     response = {
         'message': message,
         'plot': plot
@@ -527,15 +526,14 @@ def alterTradeRecord(existing_record, starting_balance, risk_to_reward_ratio, ba
         current_risk_level = new_risk_level
         prev_trade_result = current_trade_result
     
-    # Update the cached last_altered_record with the lastest altered record
-    """ global last_altered_record
-    last_altered_record = altered_record """
     logging.debug(pp.pprint(altered_record))
 
     return altered_record
 
 
 def merge_records(main_record, altered_record):
+
+    global last_merged_record
 
     # Format the new table
     header = ['Trade #', 'Win/Loss', 'Main Risk (R)', 'Main P&L (R)', 'Main P&L ($)', 'Main Balance ($)', '|', \
@@ -549,48 +547,12 @@ def merge_records(main_record, altered_record):
         merged_record.append([r1[0], r1[1], r1[2], r1[3], r1[4], r1[5], '|', \
                               r2[2], r2[3], r2[4], r2[5]])
         
+    # Cache the last merged record to prep for a downloaded file
+    last_merged_record = merged_record
     logging.debug(pp.pprint(merged_record))
     
     return merged_record
 
-
-""" def updateCompareChart(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, loss_mgt, win_mgt, \
-                       max_losses, max_wins, num_risk_levels, compare_baseline, baseline_has_updated, risk_mgt_enabled):
-    
-    global last_record, last_altered_record, last_plot
-
-    # Only update the Compared chart if there is a RiskMgt strategy used
-    if not risk_mgt_enabled:
-        return last_plot
-    
-    # Generate a new baseline if any of the strategy parameters have changed while compare_baseline is enabled
-    if baseline_has_updated:
-        logging.debug('Generating new baseline record')
-        base_loss_mgt = LossMgt.NONE
-        base_win_mgt = WinMgt.NONE
-        baseline = generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, \
-                                    base_loss_mgt, base_win_mgt, max_losses, max_wins, num_risk_levels)
-    else:
-        logging.debug('Using previous record')
-        baseline = last_record
-
-    # Alter the baseline record with the revised parameters to get the series to compare
-    compared = alterTradeRecord(baseline, starting_balance, risk_to_reward_ratio, base_risk, loss_mgt, win_mgt, \
-                     max_losses, max_wins, num_risk_levels)
-        
-    # Get the data for the plot
-    merged = merge_records(baseline, compared)
-    data = generateChartData(merged, compare_baseline)
-
-    # Clear the plot of any past compared series, and re-add the baseline and the new compared series
-    plot = generateCompareChart(data[0], data[1], data[2], True)
-
-    # Update the cached records with the latest copies    
-    last_record = baseline
-    last_altered_record = compared
-
-    return plot
- """
 
 def generateBaselineChart(baseline_record):
 
@@ -601,9 +563,6 @@ def generateBaselineChart(baseline_record):
 
     # Clear the plot of any past series and create a new baseline chart
     plot = plotBaselineChart(data[0], data[1], True)
-
-    # Update the cached records with the latest copy  
-    """  last_record = baseline_record """
 
     return plot
 
@@ -621,9 +580,6 @@ def generateMultiBaselineChart(baseline_record_list, compare_baseline):
         else:
             plot = plotBaselineChart(data[0], data[1], False)
 
-    # Cached the first record out of the list
-    """ last_record = baseline_record_list[0] """
-
     return plot
 
 
@@ -637,10 +593,6 @@ def generateCompareChart(baseline_record, compared_record, compare_baseline):
 
     # Clear the plot of any past compared series, and re-add the baseline and the new compared series
     plot = plotCompareChart(data[0], data[1], data[2], True)
-
-    # Update the cached records with the latest copies    
-    """ last_record = baseline_record
-    last_altered_record = compared_record """
 
     return plot
 
@@ -674,10 +626,16 @@ def plotBaselineChart(x_values, y_values, clear_plot):
     x_points = np.array(x_values)
     y_points = np.array(y_values)
 
-    plt.plot(x_points, y_points)
+    # Setup the format for the chart axis and plot it
+    y_format = tkr.FuncFormatter(yAxisFormatter)
+    ax = plt.subplot(111)
+    ax.plot(x_points, y_points)
+    ax.yaxis.set_major_formatter(y_format)
+
+    # Format the chart details
     plt.title('Equity Curve')
     plt.xlabel('# of Trades')
-    plt.ylabel('Account Balance')
+    plt.ylabel('Account Balance ($)')
 
     plot = get_plot_img(plt)
 
@@ -694,6 +652,12 @@ def plotCompareChart(x_values, y1_values, y2_values, clear_plot):
     y1_points = np.array(y1_values)
     y2_points = np.array(y2_values)
 
+    # Setup the format for the chart axis and plot it
+    y_format = tkr.FuncFormatter(yAxisFormatter)
+    ax = plt.subplot(111)
+    ax.plot(x_points, y1_points, y2_points, color='tab:blue')
+    ax.yaxis.set_major_formatter(y_format)
+
     plt.plot(x_points, y1_points, label='Baseline')
     plt.plot(x_points, y2_points, label='w/ Risk Mgt')
     plt.title('Equity Curve - Baseline vs. Risk Management')
@@ -704,11 +668,15 @@ def plotCompareChart(x_values, y1_values, y2_values, clear_plot):
     plot = get_plot_img(plt)
 
     return plot
-    
+
+def yAxisFormatter(x, pos):
+   s = '{:0,d}'.format(int(x))
+   return s
+
 
 def get_plot_img(plt):
     img = io.BytesIO()
-    plt.savefig(img, format = 'png')
+    plt.savefig(img, format = 'png', dpi=200)
     img.seek(0)
     plot = urllib.parse.quote(base64.b64encode(img.read()).decode())
     return plot
@@ -764,3 +732,70 @@ def increase_risk(current_risk_level):
     elif current_risk_level == RiskLevel.QUARTER:
         logging.debug('Increasing risk from Quarter to Half.')
         return RiskLevel.HALF
+    
+
+@app.route('/download_record', methods=['GET', 'POST'])
+def download_record():
+
+    global last_record, last_record_list, last_merged_record, last_compare_baseline
+
+    # Delete the last file(s) that were sent before generating a new one
+    for filename in os.listdir(tmpdir):
+        if os.path.isfile(os.path.join(tmpdir, filename)):
+            logging.debug(f'Deleting old file: {filename}')
+            os.remove(os.path.join(tmpdir, filename))
+    
+    def add_baseline_trade_row(sheet, row_num, trade):
+        sheet[f'A{row_num}'] = trade[0]
+        sheet[f'B{row_num}'] = trade[1]
+        sheet[f'C{row_num}'] = trade[2]
+        sheet[f'D{row_num}'] = trade[3]
+        sheet[f'E{row_num}'] = trade[4]
+        sheet[f'F{row_num}'] = trade[5]
+
+        return row_num + 1
+    
+    def add_merged_trade_row(sheet, row_num, trade):
+        sheet[f'A{row_num}'] = trade[0]
+        sheet[f'B{row_num}'] = trade[1]
+        sheet[f'C{row_num}'] = trade[2]
+        sheet[f'D{row_num}'] = trade[3]
+        sheet[f'E{row_num}'] = trade[4]
+        sheet[f'F{row_num}'] = trade[5]
+        # Skip the "|" that was used just for the console printouts
+        sheet[f'G{row_num}'] = trade[7]
+        sheet[f'H{row_num}'] = trade[8]
+        sheet[f'I{row_num}'] = trade[9]
+        sheet[f'J{row_num}'] = trade[10]
+
+        return row_num + 1
+    
+    # Setup the workbook
+    wb = openpyxl.Workbook()
+    sheet = wb.active
+    sheet.title = 'Trade Record'
+    sheet = wb[sheet.title]
+
+    row_num = 1
+
+    if last_compare_baseline:
+        logging.debug(pp.pprint(last_merged_record))
+        for trade in last_merged_record:
+            row_num = add_merged_trade_row(sheet, row_num, trade)
+    else:
+        logging.debug(pp.pprint(last_record))
+        for trade in last_record:
+            row_num = add_baseline_trade_row(sheet, row_num, trade)
+        
+    # Save the file to the tmp directory
+    filename = 'trade_record_' + datetime.now().strftime("%m-%d-%Y_%H%M%S") + '.xlsx'
+    logging.debug(f'Saving {tmpdir + filename}...')
+    wb.save(tmpdir + filename)
+    wb.close()
+
+    # Send the file to the user
+    try:
+        return send_from_directory(directory=tmpdir, path=filename, as_attachment=True, max_age=0)
+    except FileNotFoundError:
+        pass
+   
