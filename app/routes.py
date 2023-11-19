@@ -1,4 +1,4 @@
-import enum, os
+import enum, os, math
 import io, logging, sys, openpyxl
 import pprint, urllib, base64
 from pathlib import Path
@@ -9,7 +9,6 @@ import numpy as np
 from flask import render_template, request, jsonify, send_from_directory, flash, url_for
 from matplotlib import rcParams
 from datetime import datetime
-from time import strptime
 
 from app import app
 
@@ -36,6 +35,7 @@ class TradeRecord(enum.Enum):
 # Initializing Parameters
 starting_balance = 100000
 base_risk = 1000
+risk_type = '$'
 risk_to_reward_ratio = 2
 win_rate = 50
 num_trades = 25
@@ -65,8 +65,8 @@ def get_pp():
     return pprint.PrettyPrinter(width="200")
 
 # Setup a logger
-#logging.basicConfig(stream=sys.stderr, level=logging.INFO)
-logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
+logging.basicConfig(stream=sys.stderr, level=logging.INFO)
+#logging.basicConfig(stream=sys.stderr, level=logging.DEBUG)
 logging.getLogger('matplotlib.font_manager').disabled = True
 pp = get_pp()
 
@@ -78,22 +78,24 @@ last_merged_record = None
 last_record_list = None
 last_plot = None
 last_compare_baseline = False
+last_risk_type = '$'
 
 
 @app.route('/')
 @app.route('/index')
 def index():
 
-    global last_plot, last_record, last_altered_record
+    global last_plot, last_record, last_altered_record, last_risk_type
 
     baseline = generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, \
-                                    loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels)
+                                    loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels, risk_type)
     plot = generateBaselineChart(baseline)
     
     # Cache the appropriate variables
     last_plot = plot
     last_record = baseline
     last_altered_record = last_record
+    last_risk_type = risk_type
     
     return render_template('layout.html', plot = plot)
 
@@ -101,7 +103,7 @@ def index():
 @app.route('/update_chart', methods=['POST'])
 def update_chart():
 
-    global last_plot, last_compare_baseline, last_record, last_altered_record, last_record_list
+    global last_plot, last_compare_baseline, last_record, last_altered_record, last_record_list, last_risk_type
     baseline_has_updated = False    # This can probably be deleted
 
     # Extract the request's form dictionary
@@ -115,6 +117,8 @@ def update_chart():
             risk_to_reward_ratio = float(value)
         if key == 'baseRisk':            
             base_risk = float(value)
+        if key == 'riskType':       
+            risk_type = value
         if key == 'numTrades':   
             num_trades = int(value)
         if key == 'winRate':            
@@ -152,11 +156,11 @@ def update_chart():
         if risk_mgt_enabled:
             message = 'Compare switch has been enabled with a RiskMgt strategy being used'
             baseline = alterTradeRecord(last_record, starting_balance, risk_to_reward_ratio, base_risk, \
-                                        LossMgt.NONE, WinMgt.NONE, max_losses, max_wins, num_risk_levels)
+                                        LossMgt.NONE, WinMgt.NONE, max_losses, max_wins, num_risk_levels, risk_type)
             #compared = last_record
             compared = alterTradeRecord(baseline, starting_balance, risk_to_reward_ratio, base_risk, loss_mgt, \
-                                        win_mgt, max_losses, max_wins, num_risk_levels)
-            plot = generateCompareChart(baseline, compared, compare_baseline)
+                                        win_mgt, max_losses, max_wins, num_risk_levels, risk_type)
+            plot = generateCompareChart(baseline, compared, compare_baseline, risk_type)
 
             # Cache the appropriate records
             last_record = baseline
@@ -188,7 +192,7 @@ def update_chart():
             if not risk_mgt_enabled:
                 message = 'Compare Baseline is enabled with no RiskMgt strategy being used'
                 baseline = generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, \
-                                                loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels)
+                                                loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels, risk_type)
                 plot = generateBaselineChart(baseline)
 
                 # Cache the appropriate records
@@ -198,10 +202,10 @@ def update_chart():
             elif risk_mgt_enabled:
                 message = 'Compare Baseline is enabled with a RiskMgt strategy being used'
                 baseline = generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, \
-                                                LossMgt.NONE, WinMgt.NONE, max_losses, max_wins, num_risk_levels)
+                                                LossMgt.NONE, WinMgt.NONE, max_losses, max_wins, num_risk_levels, risk_type)
                 compared = alterTradeRecord(baseline, starting_balance, risk_to_reward_ratio, base_risk, loss_mgt, \
-                                            win_mgt, max_losses, max_wins, num_risk_levels)
-                plot = generateCompareChart(baseline, compared, compare_baseline)
+                                            win_mgt, max_losses, max_wins, num_risk_levels, risk_type)
+                plot = generateCompareChart(baseline, compared, compare_baseline, risk_type)
 
                 # Cache the appropriate records
                 last_record = baseline
@@ -213,8 +217,8 @@ def update_chart():
                 message = 'Compare Baseline is enabled and a risk parameter has updated, and a RiskMgt strategy is being used'
                 baseline = last_record
                 compared = alterTradeRecord(baseline, starting_balance, risk_to_reward_ratio, base_risk, loss_mgt, \
-                                            win_mgt, max_losses, max_wins, num_risk_levels)
-                plot = generateCompareChart(baseline, compared, compare_baseline)
+                                            win_mgt, max_losses, max_wins, num_risk_levels, risk_type)
+                plot = generateCompareChart(baseline, compared, compare_baseline, risk_type)
 
                 # Cache the appropriate records
                 last_record = baseline
@@ -234,22 +238,21 @@ def update_chart():
         if not baseline_has_updated and (num_simulations == 1):
             message = 'Compare Baseline is disabled, risk parameter adjusted with num_simulations = 1'  
             baseline = alterTradeRecord(last_record, starting_balance, risk_to_reward_ratio, base_risk, LossMgt.NONE, \
-                                            WinMgt.NONE, max_losses, max_wins, num_risk_levels)
+                                            WinMgt.NONE, max_losses, max_wins, num_risk_levels, risk_type)
             new_baseline = alterTradeRecord(last_record, starting_balance, risk_to_reward_ratio, base_risk, loss_mgt, \
-                                            win_mgt, max_losses, max_wins, num_risk_levels)
+                                            win_mgt, max_losses, max_wins, num_risk_levels, risk_type)
             plot = generateBaselineChart(new_baseline)
             
             # Cache the appropriate records
             last_record = new_baseline                
 
         # Create a new baseline chart if any Strategy parameters are updated
-        #elif baseline_has_updated:
         else:
             message = 'Compare Baseline is disabled, strategy parameter adjusted'        
             baseline_list = []
             for i in range(num_simulations):
                 baseline = generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate, \
-                                                loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels)
+                                                loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels, risk_type)
                 baseline_list.append(baseline)
 
             plot = generateMultiBaselineChart(baseline_list, compare_baseline)
@@ -265,6 +268,7 @@ def update_chart():
     # Cache tracking variables 
     last_plot = plot
     last_compare_baseline = compare_baseline
+    last_risk_type = risk_type
     
     # Load the chart into the json response to update the image using jQuery
     logging.debug(message)
@@ -278,17 +282,19 @@ def update_chart():
 
 # TODO: Add a setting for accounting for b/e trades so that the risk is unadjusted
 def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_trades, win_rate,
-                        loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels):
+                        loss_mgt, win_mgt, max_losses, max_wins, num_risk_levels, risk_type):
       
     # Pre-Loop Calcs
     win_threshold = win_rate / 100
     base_win_value = risk_to_reward_ratio * base_risk
     adj_win_RR = risk_to_reward_ratio
     adj_loss_RR = -1
+    adj_loss_percent = 0
 
     # Initializations
     current_balance = starting_balance 
     adj_win_value = base_win_value
+    base_win_percent = 0
 
     num_consecutive_losses = 0
     num_consecutive_wins = 0
@@ -301,7 +307,11 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
     current_trade_result = None
 
     # Table Formatting
-    record_header = ['Trade #', 'Win/Loss', 'Risk (R)', 'P&L (R)', 'P&L ($)', 'Balance ($)']
+    if risk_type == '$':
+        record_header = ['Trade #', 'Win/Loss', 'Risk (R)', 'P&L (R)', 'P&L ($)', 'Balance ($)']
+    elif risk_type == '%':
+        record_header = ['Trade #', 'Win/Loss', 'Risk (%)', 'P&L (%)', 'P&L ($)', 'Balance ($)']
+
     start_record = [0, '---', '---', '---', '---', starting_balance]    
     trade_record = [record_header]
     trade_record.append(start_record)
@@ -341,17 +351,30 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
                     logging.debug(f'Risk has been reduced to the lowest level: {new_risk_level}')
 
                 # Reset win counter to 0 if the risk has been reduced
-                # TODO: Review whether to start the counter on max wins at full risk
                 num_consecutive_wins = 0
 
-            # Calculates the trade results in $ and R/R adjusting for the current risk level
-            adj_win_RR = risk_to_reward_ratio * current_risk_level.value
-            adj_win_value = base_win_value * current_risk_level.value
-            current_balance += adj_win_value
+            # Calculates the trade results adjusting for the current risk level and risk type
+            if risk_type == '$':
+                adj_win_RR = risk_to_reward_ratio * current_risk_level.value
+                adj_win_value = base_win_value * current_risk_level.value
+
+                current_balance += adj_win_value
+                new_record = [trade_num, current_trade_result.value, f'{current_risk_level.value}R', \
+                                f'+{adj_win_RR}R', f'+{adj_win_value}', current_balance]
+                
+            elif risk_type == '%':
+                adj_risk_percent = base_risk * current_risk_level.value
+                base_win_percent = base_risk * risk_to_reward_ratio
+
+                adj_win_percent = base_win_percent * current_risk_level.value
+                adj_win_value = math.floor(adj_win_percent/100 * current_balance)
+
+                current_balance += adj_win_value
+                new_record = [trade_num, current_trade_result.value, f'{adj_risk_percent}%', \
+                                f'+{adj_win_percent}%', f'+{adj_win_value}', current_balance]                
 
             # Log the trade in the record
-            trade_record.append([trade_num, current_trade_result.value, f'{current_risk_level.value}R', \
-                                 f'+{adj_win_RR}R', f'+{adj_win_value}', current_balance])
+            trade_record.append(new_record)
 
         # Trade is a TradeRecord.LOSS
         else:
@@ -384,38 +407,47 @@ def generateTradeRecord(starting_balance, risk_to_reward_ratio, base_risk, num_t
             else:
                 new_risk_level = current_risk_level
 
-            # Calculates the trade results in $ and R/R adjusting for the current risk level
-            adj_loss_RR = -1 * current_risk_level.value
-            adj_loss_value = base_risk * current_risk_level.value
-            current_balance -= adj_loss_value
+            # Calculates the trade results adjusting for the current risk level and risk type
+            if risk_type == '$':
+                adj_loss_RR = -1 * current_risk_level.value
+                adj_loss_value = base_risk * current_risk_level.value
+
+                current_balance -= adj_loss_value
+                new_record = [trade_num, current_trade_result.value, f'{current_risk_level.value}R', \
+                                f'{adj_loss_RR}R', f'-{adj_loss_value}', current_balance]
+                
+            elif risk_type == '%':
+                adj_loss_percent = base_risk * current_risk_level.value
+                adj_loss_value = abs(math.floor(adj_loss_percent/100 * current_balance))
+
+                current_balance -= adj_loss_value
+                new_record = [trade_num, current_trade_result.value, f'{adj_loss_percent}%', \
+                                f'-{adj_loss_percent}%', f'-{adj_loss_value}', current_balance]
             
             # Log the trade in the record
-            trade_record.append([trade_num, current_trade_result.value, f'{current_risk_level.value}R', \
-                                 f'{adj_loss_RR}R', f'-{adj_loss_value}', current_balance])
+            trade_record.append(new_record)
     
         # Updates lookback variables
         current_risk_level = new_risk_level
         prev_trade_result = current_trade_result
-
-    # Update the cached last_record with the new record
-    """ global last_record
-    last_record = trade_record """
 
     logging.debug(pp.pprint(trade_record))
 
     return trade_record
 
 def alterTradeRecord(existing_record, starting_balance, risk_to_reward_ratio, base_risk, loss_mgt, win_mgt, \
-                     max_losses, max_wins, num_risk_levels):
+                     max_losses, max_wins, num_risk_levels, risk_type):
     
     # Pre-Loop Calcs
     base_win_value = risk_to_reward_ratio * base_risk
     adj_win_RR = risk_to_reward_ratio
     adj_loss_RR = -1
+    adj_loss_percent = 0
 
     # Initializations
     current_balance = starting_balance 
     adj_win_value = base_win_value
+    base_win_percent = 0
 
     num_consecutive_losses = 0
     num_consecutive_wins = 0
@@ -474,14 +506,28 @@ def alterTradeRecord(existing_record, starting_balance, risk_to_reward_ratio, ba
                 # TODO: Review whether to start the counter on max wins at full risk
                 num_consecutive_wins = 0
             
-            # Calculates the trade results in $ and R/R adjusting for the current risk level
-            adj_win_RR = risk_to_reward_ratio * current_risk_level.value
-            adj_win_value = base_win_value * current_risk_level.value
-            current_balance += adj_win_value
+            # Calculates the trade results adjusting for the current risk level and risk type
+            if risk_type == '$':
+                adj_win_RR = risk_to_reward_ratio * current_risk_level.value
+                adj_win_value = base_win_value * current_risk_level.value
 
-            # Log the altered trade in the new record
-            altered_record.append([trade_num, current_trade_result.value, f'{current_risk_level.value}R', \
-                                 f'+{adj_win_RR}R', f'+{adj_win_value}', current_balance])
+                current_balance += adj_win_value
+                new_record = [trade_num, current_trade_result.value, f'{current_risk_level.value}R', \
+                                f'+{adj_win_RR}R', f'+{adj_win_value}', current_balance]
+            
+            elif risk_type == '%':
+                adj_risk_percent = base_risk * current_risk_level.value
+                base_win_percent = base_risk * risk_to_reward_ratio
+
+                adj_win_percent = base_win_percent * current_risk_level.value
+                adj_win_value = math.floor(adj_win_percent/100 * current_balance)
+
+                current_balance += adj_win_value
+                new_record = [trade_num, current_trade_result.value, f'{adj_risk_percent}%', \
+                                f'+{adj_win_percent}%', f'+{adj_win_value}', current_balance]                
+
+            # Log the new altered trade in the record
+            altered_record.append(new_record)
 
         # Trade is a TradeRecord.LOSS
         else:
@@ -513,14 +559,25 @@ def alterTradeRecord(existing_record, starting_balance, risk_to_reward_ratio, ba
             else:
                 new_risk_level = current_risk_level
 
-            # Calculates the trade results in $ and R/R adjusting for the current risk level
-            adj_loss_RR = -1 * current_risk_level.value
-            adj_loss_value = base_risk * current_risk_level.value
-            current_balance -= adj_loss_value
+            # Calculates the trade results adjusting for the current risk level and risk type
+            if risk_type == '$':
+                adj_loss_RR = -1 * current_risk_level.value
+                adj_loss_value = base_risk * current_risk_level.value
 
+                current_balance -= adj_loss_value
+                new_record = [trade_num, current_trade_result.value, f'{current_risk_level.value}R', \
+                                f'{adj_loss_RR}R', f'-{adj_loss_value}', current_balance]
+                
+            elif risk_type == '%':
+                adj_loss_percent = base_risk * current_risk_level.value
+                adj_loss_value = abs(math.floor(adj_loss_percent/100 * current_balance))
+
+                current_balance -= adj_loss_value
+                new_record = [trade_num, current_trade_result.value, f'{adj_loss_percent}%', \
+                                f'-{adj_loss_percent}%', f'-{adj_loss_value}', current_balance]
+            
             # Log the trade in the record
-            altered_record.append([trade_num, current_trade_result.value, f'{current_risk_level.value}R', \
-                                 f'{adj_loss_RR}R', f'-{adj_loss_value}', current_balance])
+            altered_record.append(new_record)
         
         # Updates lookback variables
         current_risk_level = new_risk_level
@@ -531,13 +588,17 @@ def alterTradeRecord(existing_record, starting_balance, risk_to_reward_ratio, ba
     return altered_record
 
 
-def merge_records(main_record, altered_record):
+def merge_records(main_record, altered_record, risk_type):
 
     global last_merged_record
 
     # Format the new table
-    header = ['Trade #', 'Win/Loss', 'Main Risk (R)', 'Main P&L (R)', 'Main P&L ($)', 'Main Balance ($)', '|', \
-              'Adj Risk (R)', 'Adj P&L (R)', 'Adj P&L ($)', 'Adj Balance ($)']
+    if risk_type == '$':
+        header = ['Trade #', 'Win/Loss', 'Main Risk (R)', 'Main P&L (R)', 'Main P&L ($)', 'Main Balance ($)', '|', \
+                'Adj Risk (R)', 'Adj P&L (R)', 'Adj P&L ($)', 'Adj Balance ($)']
+    elif risk_type == '%':
+        header = ['Trade #', 'Win/Loss', 'Main Risk (%)', 'Main P&L (%)', 'Main P&L ($)', 'Main Balance ($)', '|', \
+                'Adj Risk (%)', 'Adj P&L (%)', 'Adj P&L ($)', 'Adj Balance ($)']
     merged_record = [header]
 
     for r1, r2 in zip(main_record, altered_record):
@@ -583,12 +644,12 @@ def generateMultiBaselineChart(baseline_record_list, compare_baseline):
     return plot
 
 
-def generateCompareChart(baseline_record, compared_record, compare_baseline):
+def generateCompareChart(baseline_record, compared_record, compare_baseline, risk_type):
 
     global last_record, last_altered_record
 
     # Get the data for the plot
-    merged = merge_records(baseline_record, compared_record)
+    merged = merge_records(baseline_record, compared_record, risk_type)
     data = generateChartData(merged, compare_baseline)
 
     # Clear the plot of any past compared series, and re-add the baseline and the new compared series
@@ -637,6 +698,12 @@ def plotBaselineChart(x_values, y_values, clear_plot):
     plt.xlabel('# of Trades')
     plt.ylabel('Account Balance ($)')
 
+    # Add the % return label at the end of the series
+    return_coords = (x_points[-1], y_points[-1])
+    total_return = round(((y_values[-1] - y_values[0]) / y_values[0]) * 100)
+    color = 'k' if (total_return >= 0) else 'r'
+    plt.annotate(f'{total_return}%', return_coords, fontsize='x-small', color=color)
+
     plot = get_plot_img(plt)
 
     return plot
@@ -663,7 +730,19 @@ def plotCompareChart(x_values, y1_values, y2_values, clear_plot):
     plt.title('Equity Curve - Baseline vs. Risk Management')
     plt.legend(loc="upper left")
     plt.xlabel('# of Trades')
-    plt.ylabel('Account Balance')
+    plt.ylabel('Account Balance ($)')
+
+    # Add the % return label at the end of the series
+    # Black for positive returns, Red for negative returns
+    baseline_total_return = round(((y1_values[-1] - y1_values[0]) / y1_values[0]) * 100)
+    baseline_return_coords = (x_points[-1], y1_points[-1])
+    baseline_color = 'k' if (baseline_total_return >= 0) else 'r'
+    plt.annotate(f'{baseline_total_return}%', baseline_return_coords, fontsize='x-small', color=baseline_color)
+
+    compared_total_return = round(((y2_values[-1] - y2_values[0]) / y2_values[0]) * 100)
+    compared_return_coords = (x_points[-1], y2_points[-1])
+    compared_color = 'k' if (compared_total_return >= 0) else 'r'
+    plt.annotate(f'{compared_total_return}%', compared_return_coords, fontsize='x-small', color=compared_color)
 
     plot = get_plot_img(plt)
 
@@ -732,7 +811,7 @@ def increase_risk(current_risk_level):
     elif current_risk_level == RiskLevel.QUARTER:
         logging.debug('Increasing risk from Quarter to Half.')
         return RiskLevel.HALF
-    
+
 
 @app.route('/download_record', methods=['GET', 'POST'])
 def download_record():
@@ -742,7 +821,7 @@ def download_record():
     # Delete the last file(s) that were sent before generating a new one
     for filename in os.listdir(tmpdir):
         if os.path.isfile(os.path.join(tmpdir, filename)):
-            logging.debug(f'Deleting old file: {filename}')
+            logging.info(f'Deleting old file: {filename}')
             os.remove(os.path.join(tmpdir, filename))
     
     def add_baseline_trade_row(sheet, row_num, trade):
@@ -762,11 +841,11 @@ def download_record():
         sheet[f'D{row_num}'] = trade[3]
         sheet[f'E{row_num}'] = trade[4]
         sheet[f'F{row_num}'] = trade[5]
-        # Skip the "|" that was used just for the console printouts
-        sheet[f'G{row_num}'] = trade[7]
-        sheet[f'H{row_num}'] = trade[8]
-        sheet[f'I{row_num}'] = trade[9]
-        sheet[f'J{row_num}'] = trade[10]
+        sheet[f'G{row_num}'] = trade[6]
+        sheet[f'H{row_num}'] = trade[7]
+        sheet[f'I{row_num}'] = trade[8]
+        sheet[f'J{row_num}'] = trade[9]
+        sheet[f'K{row_num}'] = trade[10]
 
         return row_num + 1
     
@@ -786,10 +865,10 @@ def download_record():
         logging.debug(pp.pprint(last_record))
         for trade in last_record:
             row_num = add_baseline_trade_row(sheet, row_num, trade)
-        
+
     # Save the file to the tmp directory
     filename = 'trade_record_' + datetime.now().strftime("%m-%d-%Y_%H%M%S") + '.xlsx'
-    logging.debug(f'Saving {tmpdir + filename}...')
+    logging.info(f'Saving {tmpdir + filename}...')
     wb.save(tmpdir + filename)
     wb.close()
 

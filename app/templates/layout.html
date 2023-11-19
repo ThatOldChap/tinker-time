@@ -54,6 +54,7 @@
             let CHART = 'chart';
             let STARTING_BALANCE = 'startingBalance';
             let BASE_RISK = 'baseRisk';
+            let RISK_TYPE = 'riskType';
             let RISK_TO_REWARD_RATIO = 'riskToRewardRatio';
             let WIN_RATE = 'winRate';
             let NUM_TRADES = 'numTrades';
@@ -70,6 +71,7 @@
             // Tracking Values
             let startingBalance = 100000;
             let baseRisk = 1000;
+            let riskType = '$';
             let riskToRewardRatio = 2;
             let winRate = 50;
             let numTrades = 25;
@@ -97,6 +99,19 @@
             $(`#${BASE_RISK}`).change(function(event) {
                 baseRisk = event.target.value;
                 baselineHasUpdated = true;
+                updateChart(UPDATE_CHART_URL);
+            });
+            $(`#${RISK_TYPE}`).change(function(event) {
+                riskType = event.target.value;
+                baselineHasUpdated = true;
+
+                // When the risk type is changed, change the baseRisk to a default value so it's not as crazy
+                if (riskType == '$') {
+                    baseRisk = 1000;
+                } else if (riskType == '%') {
+                    baseRisk = 1;
+                }
+                $(`#${BASE_RISK}`).val(baseRisk);
                 updateChart(UPDATE_CHART_URL);
             });
             $(`#${RISK_TO_REWARD_RATIO}`).change(function(event) {
@@ -160,6 +175,9 @@
                     $(`#${NUM_SIMULATIONS}`).val(numSimulations);
                     $(`#${NUM_SIMULATIONS}`).prev().children().val(numSimulations);
                     $(`#${NUM_SIMULATIONS}`).prop('disabled', 'disabled');
+
+                    // Since num_simulations defaults to 1, re-enable the download button
+                    $(`#${DOWNLOAD_RECORD}`).removeClass('disabled');
                 } else {
                     $(`#${NUM_SIMULATIONS}`).prop('disabled', '');
                 }
@@ -171,6 +189,7 @@
                 let data = {
                     startingBalance: startingBalance,
                     baseRisk: baseRisk,
+                    riskType: riskType,
                     riskToRewardRatio: riskToRewardRatio,
                     winRate: winRate,
                     numTrades: numTrades,
@@ -209,6 +228,7 @@
             function resetPageFields() {
                 ($(`#${STARTING_BALANCE}`).val() != startingBalance) ? $(`#${STARTING_BALANCE}`).val(startingBalance) : true;
                 ($(`#${BASE_RISK}`).val() != baseRisk) ? $(`#${BASE_RISK}`).val(baseRisk) : true;
+                ($(`#${RISK_TYPE}`).val() != riskType) ? $(`#${RISK_TYPE}`).val(riskType) : true;
                 ($(`#${RISK_TO_REWARD_RATIO}`).val() != riskToRewardRatio) ? $(`#${RISK_TO_REWARD_RATIO}`).val(riskToRewardRatio) : true;
                 ($(`#${WIN_RATE}`).val() != winRate) ? $(`#${WIN_RATE}`).val(winRate) : true;
                 ($(`#${NUM_TRADES}`).val() != numTrades) ? $(`#${NUM_TRADES}`).val(numTrades) : true;
@@ -265,7 +285,7 @@
                                 <input type="text" class="form-control form-control-md" id="baseRisk" value="1000">
                             </div>
                             <div class="col-auto">
-                                <select class="form-select form-select-md">
+                                <select class="form-select form-select-md" id="riskType">
                                     <option value="$">$</option>
                                     <option value="%">%</option>
                                 </select>
@@ -342,6 +362,11 @@
                                     <option value="3">3</option>
                                     <option value="4">4</option>
                                     <option value="5">5</option>
+                                    <option value="6">6</option>
+                                    <option value="7">7</option>
+                                    <option value="8">8</option>
+                                    <option value="9">9</option>
+                                    <option value="10">10</option>
                                 </select>
                             </div>
                         </div>
